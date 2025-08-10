@@ -1,0 +1,9 @@
+fastapi
+uvicorn[standard]
+playwright
+fastkml
+shapely
+psycopg2-binary
+sqlalchemy
+geoalchemy2
+pydantic

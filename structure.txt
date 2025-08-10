@@ -1,0 +1,49 @@
+omanpostadd/
+??? README.md                 # project overview & setup instructions
+??? requirements.txt          # Python dependencies
+??? config.py                  # settings (DB URL, logging, constants)
+??? app/
+?   ??? __init__.py
+?   ??? main.py                # FastAPI entry point
+?   ??? api/                   # API endpoints
+?   ?   ??? __init__.py
+?   ?   ??? addresses.py       # search/reverse/export endpoints
+?   ?   ??? health.py
+?   ??? core/                  # business logic
+?   ?   ??? __init__.py
+?   ?   ??? matching.py        # deduplication & clustering
+?   ?   ??? address_gen.py     # canonical code & formatting
+?   ?   ??? enrichment.py      # nearest road, admin boundaries
+?   ??? db/                    # database connection & models
+?   ?   ??? __init__.py
+?   ?   ??? models.py          # SQLAlchemy/PostGIS ORM models
+?   ?   ??? session.py
+?   ??? ingestion/             # KML ingestion & parsing
+?   ?   ??? __init__.py
+?   ?   ??? fetch_kml.py       # downloads from OmanReal
+?   ?   ??? parse_kml.py       # extract plots, coords, attributes
+?   ?   ??? load_db.py         # load parsed data into PostGIS
+?   ??? exports/               # KML/GeoJSON writers
+?   ?   ??? __init__.py
+?   ?   ??? export_kml.py
+?   ?   ??? export_geojson.py
+?   ??? utils/                 # helpers
+?       ??? __init__.py
+?       ??? geometry.py
+?       ??? text.py
+??? scripts/                   # standalone utilities
+?   ??? ingest_sample.sh       # run ingestion for a test KML
+?   ??? export_sample.sh       # run export for a bbox
+??? tests/                     # pytest tests
+?   ??? __init__.py
+?   ??? test_ingestion.py
+?   ??? test_matching.py
+?   ??? test_api.py
+??? data/                      # local data samples
+?   ??? raw/                   # raw downloaded KML files
+?   ??? parsed/                # parsed JSON/CSV for debugging
+?   ??? exports/               # generated KML/GeoJSON outputs
+??? docker/
+    ??? Dockerfile             # app container
+    ??? docker-compose.yml     # PostGIS + app
+    ??? initdb/                # DB init scripts (PostGIS schema)
