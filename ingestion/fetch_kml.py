@@ -4,78 +4,96 @@ import os
 from pathlib import Path
 from playwright.async_api import async_playwright
 
-CONCURRENT = 3
-INTER_MAP_DELAY = 1.0
+CONCURRENT_DOWNLOADS = 2
+INTER_DELAY = 1.5  # seconds delay between downloads
 
-def sanitize_filename_from_url(url):
+def sanitize_filename(url: str) -> str:
     return url.replace("https://", "").replace("http://", "").replace("/", "_").replace("?", "_").replace("&", "_")
 
-async def download_for_page(browser, url, out_dir):
-    page = await browser.new_page()
-    try:
-        await page.goto(url, timeout=60000)
-        # Find "Export to KML" button or link
-        selectors = [
-            "text=Export to KML",
-            "text=Export KML",
-            "text=Download KML",
-            "button:has-text('Export')",
-            "button:has-text('KML')",
-            "a:has-text('KML')"
-        ]
-        found = None
-        for sel in selectors:
-            el = await page.query_selector(sel)
-            if el:
-                found = el
-                break
+async def download_kml(page, url, outdir):
+    await page.goto(url, timeout=60000)
+    print(f"Visiting {url}")
 
-        if not found:
-            print(f"[WARN] Export button not found on {url}")
-            return None
+    # Try direct KML link first
+    anchors = await page.query_selector_all("a")
+    kml_url = None
+    for a in anchors:
+        href = await a.get_attribute("href")
+        if href and href.lower().endswith(".kml"):
+            kml_url = href
+            break
 
-        async with page.expect_download(timeout=60000) as download_info:
-            await found.click()
-        download = await download_info.value
-        filename = sanitize_filename_from_url(url) + "_" + (download.suggested_filename or "omanreal.kml")
-        out_path = os.path.join(out_dir, filename)
-        await download.save_as(out_path)
-        print(f"Saved KML: {out_path}")
-        return out_path
+    if kml_url:
+        print(f"Found direct KML link: {kml_url}")
+        # Fetch via browser context to keep cookies/session
+        content = await page.evaluate("(url) => fetch(url).then(r => r.text())", kml_url)
+        filename = sanitize_filename(url) + ".kml"
+        fullpath = os.path.join(outdir, filename)
+        with open(fullpath, "w", encoding="utf-8") as f:
+            f.write(content)
+        print(f"Saved KML to {fullpath}")
+        return fullpath
 
-    except Exception as e:
-        print(f"[ERROR] {url} -> {e}")
+    # Else, click "Export to KML" button and wait for download
+    selectors = [
+        "text=Export to KML",
+        "text=Export KML",
+        "text=Download KML",
+        "button:has-text('Export')",
+        "button:has-text('KML')",
+        "a:has-text('KML')"
+    ]
+    button = None
+    for sel in selectors:
+        button = await page.query_selector(sel)
+        if button:
+            break
+
+    if not button:
+        print(f"[WARN] No export button found on {url}")
         return None
-    finally:
-        await page.close()
 
-async def fetch_all(urls, out_dir):
-    Path(out_dir).mkdir(parents=True, exist_ok=True)
+    async with page.expect_download(timeout=60000) as download_info:
+        await button.click()
+    download = await download_info.value
+    suggested_name = download.suggested_filename or "omanreal_export.kml"
+    filename = sanitize_filename(url) + "_" + suggested_name
+    fullpath = os.path.join(outdir, filename)
+    await download.save_as(fullpath)
+    print(f"Downloaded KML to {fullpath}")
+    return fullpath
+
+async def run(urls_file, outdir):
+    Path(outdir).mkdir(parents=True, exist_ok=True)
+    with open(urls_file, "r", encoding="utf-8") as f:
+        urls = [line.strip() for line in f if line.strip()]
+
+    sem = asyncio.Semaphore(CONCURRENT_DOWNLOADS)
+
     async with async_playwright() as p:
         browser = await p.chromium.launch(headless=True)
-        sem = asyncio.Semaphore(CONCURRENT)
-
-        async def sem_task(url):
+        async def worker(url):
             async with sem:
-                result = await download_for_page(browser, url, out_dir)
-                await asyncio.sleep(INTER_MAP_DELAY)
-                return result
+                page = await browser.new_page()
+                try:
+                    res = await download_kml(page, url, outdir)
+                    await asyncio.sleep(INTER_DELAY)
+                    return res
+                finally:
+                    await page.close()
 
-        tasks = [asyncio.create_task(sem_task(url)) for url in urls]
+        tasks = [worker(url) for url in urls]
         results = await asyncio.gather(*tasks)
         await browser.close()
-    return results
 
-def main():
-    import sys
-    if len(sys.argv) < 3:
-        print("Usage: python fetch_kml.py maps.txt ./kmls/")
-        return
-    urls_file = sys.argv[1]
-    out_dir = sys.argv[2]
-    with open(urls_file, "r") as f:
-        urls = [line.strip() for line in f if line.strip()]
-    asyncio.run(fetch_all(urls, out_dir))
+    print("All downloads done:")
+    for r in results:
+        if r:
+            print(" -", r)
 
 if __name__ == "__main__":
-    main()
+    import sys
+    if len(sys.argv) != 3:
+        print("Usage: python fetch_kml.py maps.txt kml_out_dir")
+        sys.exit(1)
+    asyncio.run(run(sys.argv[1], sys.argv[2]))
