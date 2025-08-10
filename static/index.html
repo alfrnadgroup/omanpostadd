@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Oman Post Addressing System</title>
+
+  <!-- Leaflet CSS -->
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/leaflet@1.9.3/dist/leaflet.css"
+    integrity="sha256-sA+e2mtXhGJm3N+KYhRx0pUyQu2JfZnMx5f5mN9I6r0="
+    crossorigin=""
+  />
+  <style>
+    #map {
+      height: 100vh;
+      width: 100vw;
+    }
+  </style>
+</head>
+<body>
+  <div id="map"></div>
+
+  <!-- Leaflet JS -->
+  <script
+    src="https://unpkg.com/leaflet@1.9.3/dist/leaflet.js"
+    integrity="sha256-nQN+eiZ3Zl+n6Aw3HYljZCwWn8bznzyNqJpI+1q8ybM="
+    crossorigin=""
+  ></script>
+
+  <script>
+    // Initialize map centered on Oman (adjust coordinates/zoom as needed)
+    const map = L.map("map").setView([21.5, 57.9], 7);
+
+    // Add OpenStreetMap tile layer
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      maxZoom: 19,
+      attribution:
+        '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+    }).addTo(map);
+
+    // Fetch and add plots as GeoJSON layer
+    fetch("/api/plots")
+      .then((res) => res.json())
+      .then((geojson) => {
+        const plotLayer = L.geoJSON(geojson, {
+          onEachFeature: (feature, layer) => {
+            const code = feature.properties.code;
+
+            layer.on("click", () => {
+              // Fetch address details for clicked plot
+              fetch(`/api/addresses/${code}`)
+                .then((res) => {
+                  if (!res.ok) throw new Error("Address not found");
+                  return res.json();
+                })
+                .then((data) => {
+                  const popupContent = `
+                    <strong>${data.name}</strong><br />
+                    <em>${data.code}</em><br />
+                    <p>${data.description || "No description available."}</p>
+                  `;
+                  layer.bindPopup(popupContent).openPopup();
+                })
+                .catch(() => {
+                  layer.bindPopup("Address info not available.").openPopup();
+                });
+            });
+          },
+          style: {
+            color: "#0078A8",
+            weight: 2,
+            opacity: 0.7,
+            fillOpacity: 0.2,
+          },
+        });
+        plotLayer.addTo(map);
+      })
+      .catch(() => {
+        alert("Failed to load plots data");
+      });
+  </script>
+</body>
+</html>
