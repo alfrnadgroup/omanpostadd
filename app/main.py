@@ -6,8 +6,12 @@ from app.api import addresses  # your existing API router
 import glob
 from fastkml import kml
 import json
+from shapely.geometry import mapping
 
 app = FastAPI(title="Oman Post Addressing System")
+
+# Mount static files early
+app.mount("/static", StaticFiles(directory="app/static"), name="static")
 
 app.include_router(addresses.router, prefix="/api")
 
@@ -45,16 +49,16 @@ def startup_event():
     load_kmls()
 
 @app.get("/", response_class=HTMLResponse)
-def index():
+async def index():
     with open("app/static/index.html", "r") as f:
         return f.read()
 
 @app.get("/api/plots")
-def get_plots():
+async def get_plots():
     features = []
     for code, plot in plots.items():
         geom = plot["geometry"]
-        geojson = json.loads(geom.geojson) if geom else None
+        geojson = mapping(geom) if geom else None
         if geojson:
             features.append({
                 "type": "Feature",
@@ -67,7 +71,7 @@ def get_plots():
     return {"type": "FeatureCollection", "features": features}
 
 @app.get("/api/addresses/{code}")
-def get_address(code: str):
+async def get_address(code: str):
     if code not in plots:
         raise HTTPException(status_code=404, detail="Address not found")
     plot = plots[code]
@@ -76,6 +80,3 @@ def get_address(code: str):
         "name": plot["name"],
         "description": plot["description"]
     }
-
-# Serve static files (JS, CSS)
-app.mount("/static", StaticFiles(directory="app/static"), name="static")
