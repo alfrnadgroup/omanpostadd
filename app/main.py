@@ -1,11 +1,81 @@
-# main.py
-from fastapi import FastAPI
-from app.api import addresses
+from fastapi import FastAPI, HTTPException
+from fastapi.responses import HTMLResponse
+from fastapi.staticfiles import StaticFiles
+from app.api import addresses  # your existing API router
+
+import glob
+from fastkml import kml
+import json
 
 app = FastAPI(title="Oman Post Addressing System")
 
 app.include_router(addresses.router, prefix="/api")
 
-@app.get("/")
-def root():
-    return {"message": "Welcome to Oman Post Addressing System"}
+plots = {}  # code -> plot info
+
+def load_kmls():
+    files = glob.glob("data/raw/*.kml")
+    seq = 1
+    for file in files:
+        with open(file, "rb") as f:
+            doc = f.read()
+        k = kml.KML()
+        k.from_string(doc)
+        features = list(k.features())
+
+        def walk(feats):
+            for feat in feats:
+                if hasattr(feat, "features"):
+                    yield from walk(list(feat.features()))
+                else:
+                    yield feat
+
+        placemarks = list(walk(features))
+        for pm in placemarks:
+            code = f"OM-WL001-{seq:06d}"
+            plots[code] = {
+                "name": pm.name,
+                "description": pm.description,
+                "geometry": pm.geometry  # shapely geometry object
+            }
+            seq += 1
+
+@app.on_event("startup")
+def startup_event():
+    load_kmls()
+
+@app.get("/", response_class=HTMLResponse)
+def index():
+    with open("app/static/index.html", "r") as f:
+        return f.read()
+
+@app.get("/api/plots")
+def get_plots():
+    features = []
+    for code, plot in plots.items():
+        geom = plot["geometry"]
+        geojson = json.loads(geom.geojson) if geom else None
+        if geojson:
+            features.append({
+                "type": "Feature",
+                "geometry": geojson,
+                "properties": {
+                    "code": code,
+                    "name": plot["name"]
+                }
+            })
+    return {"type": "FeatureCollection", "features": features}
+
+@app.get("/api/addresses/{code}")
+def get_address(code: str):
+    if code not in plots:
+        raise HTTPException(status_code=404, detail="Address not found")
+    plot = plots[code]
+    return {
+        "code": code,
+        "name": plot["name"],
+        "description": plot["description"]
+    }
+
+# Serve static files (JS, CSS)
+app.mount("/static", StaticFiles(directory="app/static"), name="static")
