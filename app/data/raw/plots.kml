@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<kml xmlns="http://www.opengis.net/kml/2.2">
+  <Document>
+    <name>Plots Example</name>
+
+    <Placemark>
+      <name>Plot 1</name>
+      <Polygon>
+        <outerBoundaryIs>
+          <LinearRing>
+            <coordinates>
+              58.382,23.585,0
+              58.383,23.585,0
+              58.383,23.586,0
+              58.382,23.586,0
+              58.382,23.585,0
+            </coordinates>
+          </LinearRing>
+        </outerBoundaryIs>
+      </Polygon>
+    </Placemark>
+
+    <Placemark>
+      <name>Plot 2</name>
+      <Polygon>
+        <outerBoundaryIs>
+          <LinearRing>
+            <coordinates>
+              58.384,23.584,0
+              58.385,23.584,0
+              58.385,23.585,0
+              58.384,23.585,0
+              58.384,23.584,0
+            </coordinates>
+          </LinearRing>
+        </outerBoundaryIs>
+      </Polygon>
+    </Placemark>
+
+  </Document>
+</kml>
