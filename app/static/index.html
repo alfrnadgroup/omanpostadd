@@ -13,14 +13,39 @@
     crossorigin=""
   />
   <style>
+    /* Make map fill entire viewport and position behind content */
     #map {
+      position: fixed;  /* Fix the map to viewport */
+      top: 0;
+      left: 0;
       height: 100vh;
       width: 100vw;
+      z-index: 0;       /* Behind everything */
+    }
+
+    /* Content container positioned above the map */
+    #content {
+      position: relative;
+      z-index: 1000;    /* On top of map */
+      color: #333;
+      padding: 20px;
+      /* example styling */
+      background: rgba(255, 255, 255, 0.8);
+      max-width: 600px;
+      margin: 20px auto;
+      border-radius: 8px;
+      box-shadow: 0 0 10px rgba(0,0,0,0.3);
     }
   </style>
 </head>
 <body>
   <div id="map"></div>
+
+  <!-- Example content on top of map -->
+  <div id="content">
+    <h1>Oman Post Addressing System</h1>
+    <p>Click on plots to see address details.</p>
+  </div>
 
   <!-- Leaflet JS -->
   <script
@@ -85,6 +110,7 @@
         });
 
         plotLayer.addTo(map);
+
         // Fit map to plots bounds (if any)
         const bounds = plotLayer.getBounds();
         if (bounds.isValid()) {
