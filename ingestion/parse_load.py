@@ -1,12 +1,14 @@
-# parse_load.py
 import os
 import glob
 import json
+import logging
 from fastkml import kml
 from shapely.geometry import mapping
 from shapely.wkt import dumps as wkt_dumps
 import psycopg2
 from psycopg2.extras import Json
+
+logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)s] %(message)s')
 
 def connect(dsn):
     return psycopg2.connect(dsn)
@@ -55,8 +57,8 @@ def placemark_to_record(pm):
         try:
             for data in pm.extended_data.elements:
                 props[data.name] = data.value
-        except Exception:
-            pass
+        except Exception as e:
+            logging.warning(f"Failed to parse extended_data for {pm.name}: {e}")
     geom = pm.geometry
     footprint_geojson = mapping(geom) if geom else None
     return props, geom, footprint_geojson
@@ -70,25 +72,26 @@ def upsert(conn, source, source_id, props, geom, footprint):
             VALUES (%s, %s, %s,
                     ST_SetSRID(ST_GeomFromText(%s),4326),
                     ST_SetSRID(ST_GeomFromGeoJSON(%s),4326))
-            RETURNING raw_id
         """, (source, source_id, Json(props), geom_wkt, footprint_json))
-        rid = cur.fetchone()[0]
-        conn.commit()
-        return rid
 
 def load_directory(kml_dir, dsn):
     conn = connect(dsn)
     ensure_tables(conn)
-    for filepath in glob.glob(os.path.join(kml_dir, "*.kml")):
+    files = glob.glob(os.path.join(kml_dir, "*.kml"))
+    logging.info(f"Found {len(files)} KML files in {kml_dir}")
+    for filepath in files:
         try:
             placemarks = parse_kml_file(filepath)
-            print(f"{filepath} has {len(placemarks)} placemarks")
+            logging.info(f"{filepath} has {len(placemarks)} placemarks")
             for idx, pm in enumerate(placemarks):
                 props, geom, footprint = placemark_to_record(pm)
                 source_id = f"{os.path.basename(filepath)}::{idx}"
                 upsert(conn, "omanreal_kml", source_id, props, geom, footprint)
+            conn.commit()
+            logging.info(f"Committed {len(placemarks)} placemarks from {filepath}")
         except Exception as e:
-            print(f"[ERROR] parsing {filepath}: {e}")
+            logging.error(f"Error parsing {filepath}: {e}")
+            conn.rollback()
     conn.close()
 
 def main():
