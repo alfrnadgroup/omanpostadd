@@ -7,18 +7,22 @@ import glob
 from fastkml import kml
 import json
 from shapely.geometry import mapping
+import os
 
 app = FastAPI(title="Oman Post Addressing System")
 
-# Mount static files early
-app.mount("/static", StaticFiles(directory="app/static"), name="static")
+# Use absolute path for static directory, relative to current file location
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+STATIC_DIR = os.path.join(BASE_DIR, "static")
+
+app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
 app.include_router(addresses.router, prefix="/api")
 
 plots = {}  # code -> plot info
 
 def load_kmls():
-    files = glob.glob("data/raw/*.kml")
+    files = glob.glob(os.path.join(BASE_DIR, "../data/raw/*.kml"))
     seq = 1
     for file in files:
         with open(file, "rb") as f:
@@ -50,7 +54,8 @@ def startup_event():
 
 @app.get("/", response_class=HTMLResponse)
 async def index():
-    with open("app/static/index.html", "r") as f:
+    index_path = os.path.join(STATIC_DIR, "index.html")
+    with open(index_path, "r") as f:
         return f.read()
 
 @app.get("/api/plots")
