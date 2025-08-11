@@ -1,0 +1,21 @@
+xml version=1.0 encoding=UTF-8
+kml xmlns=httpwww.opengis.netkml2.2
+  Document
+    namePoints Examplename
+
+    Placemark
+      namePoint Aname
+      Point
+        coordinates58.3825,23.5855,0coordinates
+      Point
+    Placemark
+
+    Placemark
+      namePoint Bname
+      Point
+        coordinates58.3845,23.5845,0coordinates
+      Point
+    Placemark
+
+  Document
+kml
